@@ -78,6 +78,9 @@ ul {
 .pc-only {
   display: block;
 }
+.sp-only {
+  display: none;
+}
 
 /* ===== ボタン ===== */
 .btn {
@@ -155,6 +158,36 @@ ul {
   font-size: 1.1em;
 }
 
+/* ===== 準備中ボタン ===== */
+.btn-coming-soon {
+  position: relative;
+  opacity: 0.72;
+  cursor: default;
+}
+
+.btn-coming-soon::after {
+  content: '準備中';
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--white);
+  background: var(--gray-500);
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.05em;
+}
+
+.btn-coming-soon:hover {
+  transform: none;
+  box-shadow: none;
+  opacity: 0.72;
+}
+
 /* ===== ラベル ===== */
 .label {
   display: inline-block;
@@ -206,6 +239,12 @@ ul {
   background: rgba(255,255,255,0.15);
   color: var(--white);
   border-color: rgba(255,255,255,0.3);
+}
+
+.section-label-navy {
+  background: rgba(255,255,255,0.18);
+  color: var(--white);
+  border-color: rgba(255,255,255,0.35);
 }
 
 .section-title {
@@ -372,10 +411,23 @@ ul {
   border: 1px solid rgba(201,168,76,0.2);
 }
 
-/* ===== セクション1: 感謝 ===== */
+/* ===== セクション1: 感謝（濃紺グラデーション背景） ===== */
 .section-thanks {
-  background: var(--gray-50);
+  background: linear-gradient(160deg, #0D1B4B 0%, #1A2E6E 50%, #0F2255 100%);
   border-top: 4px solid var(--gold);
+  position: relative;
+  overflow: hidden;
+}
+
+.section-thanks::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .thanks-body {
@@ -384,9 +436,10 @@ ul {
   text-align: center;
 }
 
-.thanks-body p {
+.thanks-body p,
+.thanks-text-light {
   font-size: 1rem;
-  color: var(--text-sub);
+  color: rgba(255,255,255,0.82);
   line-height: 1.9;
   margin-bottom: 20px;
 }
@@ -402,18 +455,18 @@ ul {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(201,168,76,0.25);
   border-left: 4px solid var(--gold);
   border-radius: var(--radius-sm);
   padding: 14px 20px;
   font-size: 0.95rem;
   font-weight: 500;
-  color: var(--navy);
+  color: var(--white);
   text-align: left;
-  box-shadow: var(--shadow-sm);
   opacity: 1 !important;
   transform: none !important;
+  backdrop-filter: blur(4px);
 }
 
 .q-icon {
@@ -421,10 +474,11 @@ ul {
   flex-shrink: 0;
 }
 
-.thanks-closing {
+.thanks-closing,
+.thanks-closing-light {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--navy);
+  color: var(--gold-light);
 }
 
 /* ===== セクション2: 5大特典 ===== */
@@ -438,7 +492,7 @@ ul {
   gap: 24px;
 }
 
-/* 5枚目のカードを中央に */
+/* 4・5枚目のカードを中央寄せ */
 .benefits-grid .benefit-card:nth-child(4) {
   grid-column: 1;
 }
@@ -465,29 +519,33 @@ ul {
   border-color: var(--gold);
 }
 
+/* 特典02: 最重要CTAとして強調 */
 .benefit-card-featured {
-  border: 2px solid var(--gold);
+  border: 3px solid var(--gold);
   background: linear-gradient(160deg, #FFFDF5 0%, var(--white) 100%);
-  box-shadow: var(--shadow-gold);
+  box-shadow: 0 8px 40px rgba(201,168,76,0.25);
+  transform: scale(1.02);
 }
 
 .benefit-card-featured:hover {
-  box-shadow: 0 20px 60px rgba(201,168,76,0.35);
+  transform: scale(1.02) translateY(-6px);
+  box-shadow: 0 20px 60px rgba(201,168,76,0.4);
 }
 
 .benefit-badge-featured {
   position: absolute;
-  top: -12px;
+  top: -14px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--gold);
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
   color: var(--navy);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  padding: 4px 16px;
+  padding: 5px 20px;
   border-radius: 50px;
   letter-spacing: 0.08em;
   white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(201,168,76,0.4);
 }
 
 .benefit-number {
@@ -521,6 +579,12 @@ ul {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--gray-200);
+}
+
+/* 特典02のアイコンをゴールド背景に */
+.benefit-icon-wrap-gold {
+  background: linear-gradient(135deg, rgba(201,168,76,0.2) 0%, rgba(232,201,106,0.15) 100%);
+  border-color: rgba(201,168,76,0.4);
 }
 
 .benefit-icon {
@@ -639,56 +703,57 @@ ul {
   color: var(--gold-dark);
 }
 
+/* 動画サムネイル（強化版） */
 .video-thumb {
   position: relative;
-  height: 160px;
+  height: 180px;
   overflow: hidden;
+  background: var(--navy);
 }
 
-.video-thumb-bg {
+.video-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.video-card:hover .video-thumb-img {
+  transform: scale(1.04);
+}
+
+.video-play-btn {
   position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-}
-
-.video-bg-1 {
-  background: linear-gradient(135deg, #1A3A6E 0%, #2A5A9E 100%);
-}
-
-.video-bg-2 {
-  background: linear-gradient(135deg, #0D2B5E 0%, #1A4A8E 50%, #2A6ABE 100%);
-}
-
-.video-bg-3 {
-  background: linear-gradient(135deg, #0A1535 0%, #1A2B5E 50%, #C9A84C 100%);
-}
-
-.video-play-icon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 56px;
-  height: 56px;
+  bottom: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
   background: rgba(255,255,255,0.15);
-  border: 2px solid rgba(255,255,255,0.6);
+  border: 2px solid rgba(255,255,255,0.5);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  color: var(--white);
-  z-index: 2;
+  z-index: 3;
   backdrop-filter: blur(4px);
   transition: all var(--transition);
 }
 
-.video-card:hover .video-play-icon {
+.video-play-icon {
+  font-size: 0.9rem;
+  color: var(--white);
+  margin-left: 2px;
+}
+
+.video-card:hover .video-play-btn {
   background: rgba(201,168,76,0.3);
   border-color: var(--gold);
+  transform: scale(1.1);
+}
+
+.video-card:hover .video-play-icon {
   color: var(--gold);
-  transform: translate(-50%, -50%) scale(1.1);
 }
 
 .video-body {
@@ -936,8 +1001,8 @@ ul {
 /* ===== スクロールアニメーション ===== */
 .fade-in {
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
 .fade-in.visible {
@@ -945,11 +1010,12 @@ ul {
   transform: translateY(0);
 }
 
-/* JS無効時のフォールバック */
+/* JS無効時・reduced-motionのフォールバック */
 @media (prefers-reduced-motion: reduce) {
   .fade-in {
     opacity: 1;
     transform: none;
+    transition: none;
   }
 }
 
@@ -981,6 +1047,14 @@ ul {
     grid-column: auto;
   }
 
+  .benefit-card-featured {
+    transform: scale(1);
+  }
+
+  .benefit-card-featured:hover {
+    transform: translateY(-6px);
+  }
+
   .videos-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1002,6 +1076,10 @@ ul {
     display: none;
   }
 
+  .sp-only {
+    display: block;
+  }
+
   .section {
     padding: 56px 0;
   }
@@ -1011,7 +1089,7 @@ ul {
   }
 
   .hero-title {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
   }
 
   .hero-title-highlight {
@@ -1041,6 +1119,14 @@ ul {
 
   .benefit-card {
     padding: 24px 20px;
+  }
+
+  .benefit-card-featured {
+    transform: scale(1);
+  }
+
+  .benefit-card-featured:hover {
+    transform: translateY(-4px);
   }
 
   .videos-grid {
@@ -1092,25 +1178,9 @@ ul {
   .question-item {
     font-size: 0.88rem;
   }
-}
 
-/* ===== 仮置きURL表示 ===== */
-[data-placeholder] {
-  position: relative;
-}
-
-[data-placeholder]::after {
-  content: '※ URL未設定';
-  position: absolute;
-  top: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.65rem;
-  color: var(--gray-500);
-  white-space: nowrap;
-  background: var(--white);
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--gray-200);
-  pointer-events: none;
+  .btn-coming-soon::after {
+    font-size: 0.62rem;
+    top: -24px;
+  }
 }
