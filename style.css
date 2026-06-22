@@ -999,24 +999,16 @@ ul {
 }
 
 /* ===== スクロールアニメーション ===== */
+/* カードは常時表示（アニメーション無効化） */
 .fade-in {
-  opacity: 0.15;
-  transform: translateY(20px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 1;
+  transform: none;
+  transition: none;
 }
 
 .fade-in.visible {
   opacity: 1;
-  transform: translateY(0);
-}
-
-/* JS無効時・reduced-motionのフォールバック */
-@media (prefers-reduced-motion: reduce) {
-  .fade-in {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
+  transform: none;
 }
 
 /* ===== レスポンシブ: タブレット ===== */
