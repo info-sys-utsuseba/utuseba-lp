@@ -1,0 +1,86 @@
+name: security
+
+# 強制点④（CI）。ローカルのフックは `git commit --no-verify` で抜けられる。
+# ここは開発者の手元の設定に依存しないので、抜けた場合も必ず判定が残る。
+#
+# このファイルは josys-security の雛形。手で編集せず、install.sh で更新すること。
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 1 * *'       # 毎月1日 09:00 JST に全走査（既存分の棚卸し）
+  workflow_dispatch:
+
+permissions:
+  contents: read              # 書き込み権限は要らない。最小権限で回す。
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # 範囲差分に履歴が要る
+
+      - name: 走査範囲を決める
+        id: r
+        env:
+          EV:  ${{ github.event_name }}
+          PRB: ${{ github.event.pull_request.base.sha }}
+          PRH: ${{ github.event.pull_request.head.sha }}
+          BEF: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        # 値は env 経由で渡す。run: へ直接展開するとスクリプト注入の口になる。
+        run: |
+          case "$EV" in
+            pull_request) echo "range=$PRB..$PRH" >> "$GITHUB_OUTPUT" ;;
+            push)         echo "range=$BEF..$SHA" >> "$GITHUB_OUTPUT" ;;
+            *)            echo "range=" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: 機微情報スキャン
+        env:
+          RANGE: ${{ steps.r.outputs.range }}
+          EV:    ${{ github.event_name }}
+        run: |
+          # 配布物の欠落チェック。「検査しているつもりで何も動いていない」状態を作らない。
+          MISSING=""
+          for f in .security/engine.py .security/pre-commit \
+                   .security/install-hook.sh .security/ENGINE_VERSION; do
+            [ -f "$f" ] || MISSING="$MISSING $f"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::セキュリティ配布物が欠けています:$MISSING"
+            echo "::error::install.sh --remote <リポ名> で入れ直してください"
+            exit 1
+          fi
+          echo "engine: $(cat .security/ENGINE_VERSION)"
+
+          # GitHub Actions の run: は既定で `bash -e`。素直に `cmd; RC=$?` と書くと
+          # 非ゼロ終了した瞬間にステップが落ち、下の case が一度も評価されない。
+          # その結果「警告だけ(RC=1)でも CI が失敗する」＝オオカミ少年になり、
+          # 最終的にゲートごと外される。必ず `|| RC=$?` で受けること。
+          if [ -n "$RANGE" ]; then
+            python3 .security/engine.py --range "$RANGE" --strict && RC=0 || RC=$?
+          else
+            python3 .security/engine.py --tracked --strict && RC=0 || RC=$?
+          fi
+
+          case "$RC" in
+            0) echo "clean" ;;
+            1) echo "::warning::要確認の検出があります（停止はしません）" ;;
+            2)
+              # push / PR = 今回入った変更が原因。止める。
+              # schedule / 手動 = 既存分の棚卸し。別作業なので落とさず報告に留める。
+              if [ "$EV" = "push" ] || [ "$EV" = "pull_request" ]; then
+                echo "::error::顧客の個人情報または鍵の混入を検出しました"
+                exit 1
+              fi
+              echo "::warning::既存分に検出があります（棚卸し対象・このジョブは落としません）"
+              ;;
+            *)
+              # エンジン自体が壊れた場合。「壊れて常に通っている」が最悪なので必ず落とす。
+              echo "::error::検出エンジンが異常終了しました（RC=$RC）"
+              exit 1
+              ;;
+          esac
