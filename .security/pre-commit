@@ -1,0 +1,86 @@
+#!/bin/sh
+# josys-security — git pre-commit（強制点②：人間・外部開発者のコミット）
+#
+# 役割: コミットしようとしている *追加行* に、顧客の個人情報・鍵・案件間混入が
+#       含まれていないかを、送信される前に止める。
+#
+# これは「事故を止める柵」であって「悪意を止める壁」ではない。
+# --no-verify で抜けられるのは承知の上で、抜けた場合は CI（強制点④）が拾う。
+#
+# ★ 設計方針: **黙って通さない。**
+#   検査できない状態（エンジンが無い／python3 が無い／エンジンが壊れた）は
+#   「安全」ではなく「不明」である。不明を安全として扱うと、防御があるつもりのまま
+#   何も動いていない状態が一番長く続く。よってすべて停止し、理由と直し方を出す。
+#   急ぐときの逃げ道は git 標準の --no-verify（CI に記録が残る）。
+#
+# 導入: josys-security の install.sh、または案件リポの .security/install-hook.sh
+set -u
+
+die() {
+  printf '\n🛑 コミットを停止しました（セキュリティ検査が実行できません）\n\n' >&2
+  printf '   %s\n\n' "$1" >&2
+  printf '   直し方:\n' >&2
+  printf '%s\n' "$2" >&2
+  printf '\n   検査できない状態を「問題なし」として通すことはしません。\n' >&2
+  printf '   どうしても急ぐ場合のみ: git commit --no-verify\n' >&2
+  printf '   （その場合も push 後に CI が同じ検査を行い、記録が残ります）\n\n' >&2
+  exit 1
+}
+
+# ── エンジンの場所を解決する ──────────────────────────────
+# ① リポ同梱を最優先する。CI が使うものと同一版になり、手元と CI の判定がずれない。
+# ② 外部開発者の環境には ~/.claude-utsuseba は無い。決め打ちにしない。
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+for c in \
+  "${JOSYS_SEC_ENGINE:-}" \
+  "$(git config --get josys.engine 2>/dev/null || true)" \
+  "$ROOT/.security/engine.py" \
+  "$HOME/.josys-security/engine/sec_detect.py" \
+  "$HOME/.claude-utsuseba/hooks/sec/sec_detect.py"
+do
+  if [ -n "$c" ] && [ -f "$c" ]; then ENGINE="$c"; break; fi
+done
+
+if [ -z "${ENGINE:-}" ]; then
+  die "検出エンジンが見つかりません。このフックは install.sh が置いたものなので、
+   エンジンだけが消えている＝導入が壊れているか、削除された状態です。" \
+"     ・案件リポの場合  : sh .security/install-hook.sh
+     ・自分の環境の場合: sh ~/josys-security/install.sh"
+fi
+
+PY="$(command -v python3 2>/dev/null || true)"
+if [ -z "$PY" ]; then
+  die "python3 が見つかりません（PATH 上に存在しません）。" \
+"     macOS  : xcode-select --install
+     Windows: https://www.python.org/downloads/ （Add to PATH を有効に）
+     Linux  : sudo apt install python3 など"
+fi
+
+OUT="$("$PY" "$ENGINE" --repo "$ROOT" --staged --strict 2>&1)"
+RC=$?
+
+case "$RC" in
+  0) : ;;                                  # clean
+  1) [ -n "$OUT" ] && printf '\n%s\n\n' "$OUT" >&2 ;;   # WARN は通す。止めない
+  2)
+    printf '\n%s\n\n' "$OUT" >&2
+    printf '  → 直したら再度 git commit。誤検知なら .security/allow.txt に1行追加。\n' >&2
+    printf '  → どうしても急ぐ場合のみ: git commit --no-verify（理由を残すこと）\n' >&2
+    printf '  → なお --no-verify で抜けても、push 後に CI が同じ判定を出します。\n\n' >&2
+    exit 1
+    ;;
+  *)
+    # エンジンが例外で落ちた。ルールが1つも評価されていない可能性がある。
+    printf '\n%s\n' "$OUT" >&2
+    die "検出エンジンが異常終了しました（終了コード ${RC}）。上の出力が原因です。" \
+"     ・エンジンを入れ直す: sh .security/install-hook.sh
+     ・直らなければ前川へ連絡（このメッセージ全文を添えてください）"
+    ;;
+esac
+
+# 既存の pre-commit（husky 等）を潰さない。退避先があれば続けて実行する。
+LOCAL="$(git rev-parse --git-path hooks/pre-commit.local 2>/dev/null)"
+if [ -n "${LOCAL:-}" ] && [ -x "$LOCAL" ]; then
+  "$LOCAL" || exit $?
+fi
+exit 0
