@@ -80,6 +80,13 @@ SECRET_RULES = [
      "Google API キー"),
     ("secret.slack",        re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}"),
      "Slack トークン"),
+    # 署名シークレットは 32桁の16進＝MD5等と見分けがつかない。変数名と同居する時だけ。
+    ("secret.slack_signing", re.compile(r"(?i)(?:signing[_-]?secret|slack[_-]?signing)\s*[:=]\s*['\"]?[a-f0-9]{32}\b"),
+     "Slack 署名シークレット（リクエスト偽装が可能になる）"),
+    # Discord bot トークン。1segは snowflake の base64 なので M/N/O 始まり。
+    # JWT(eyJ 始まり)とは先頭で分かれるので取り違えない。
+    ("secret.discord_bot",  re.compile(r"\b(?:[MNO][A-Za-z0-9_-]{22,27}|mfa)\.[A-Za-z0-9_-]{5,8}\.[A-Za-z0-9_-]{25,45}\b"),
+     "Discord bot トークン"),
     ("secret.stripe_live",  re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{20,}"),
      "Stripe 本番シークレットキー"),
     ("secret.privatekey",   re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"),
