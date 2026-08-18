@@ -78,6 +78,55 @@ case "$RC" in
     ;;
 esac
 
+# ── Actions のコスト事故ゲート（強制点⑥）─────────────────
+# 2026-08-12、無料枠（月2,000分）の枯渇で請求書の提出チェックほか全社の自動処理が
+# 止まった。原因は一発のミスではなく、各案件に積み上がった小さなワークフロー。
+# GitHub の課金はジョブ単位で1分に切り上げなので、5秒の cron でも1回1分。
+# 「速くする」では1円も減らない。回数を機械で抑えるしかない。
+#
+# ワークフローを触ったコミットのときだけ見る。既存の違反で毎回止めると、
+# 関係ないコミットが通らなくなり、最終的にフックごと外される。
+WFS="$(git diff --cached --name-only --diff-filter=d \
+        -- '.github/workflows/*.yml' '.github/workflows/*.yaml' 2>/dev/null || true)"
+if [ -n "$WFS" ]; then
+  for c in \
+    "$ROOT/.security/wf_cost.py" \
+    "$(dirname "$ENGINE")/wf_cost.py" \
+    "$HOME/.josys-security/engine/wf_cost.py"
+  do
+    if [ -n "$c" ] && [ -f "$c" ]; then WFC="$c"; break; fi
+  done
+
+  if [ -z "${WFC:-}" ]; then
+    # 機微情報エンジンと違い、こちらは後から追加した検査。まだ配られていない
+    # リポジトリが当分残るので、無い場合は止めずに知らせるだけにする。
+    printf '\n⚠️  Actions コスト検査（wf_cost.py）が見つかりません。\n' >&2
+    printf '   ワークフローを変更していますが、頻度・timeout の検査は行われていません。\n' >&2
+    printf '   入れ直す: sh .security/install-hook.sh\n\n' >&2
+  else
+    # shellcheck disable=SC2086
+    WOUT="$("$PY" "$WFC" --repo "$ROOT" --files $WFS --strict 2>&1)"
+    WRC=$?
+    case "$WRC" in
+      0) : ;;
+      1) [ -n "$WOUT" ] && printf '\n%s\n' "$WOUT" >&2 ;;
+      2)
+        printf '\n%s\n' "$WOUT" >&2
+        printf '  → 直したら再度 git commit。意図的な例外なら該当行の上に\n' >&2
+        printf '     `# cost-ok: <理由>` を書いてください（理由は必須）。\n' >&2
+        printf '  → 急ぐ場合のみ: git commit --no-verify（CI が同じ判定を出します）\n\n' >&2
+        exit 1
+        ;;
+      *)
+        printf '\n%s\n' "$WOUT" >&2
+        die "コスト検査エンジンが異常終了しました（終了コード ${WRC}）。" \
+"     ・入れ直す: sh .security/install-hook.sh
+     ・直らなければ前川へ連絡（このメッセージ全文を添えてください）"
+        ;;
+    esac
+  fi
+fi
+
 # 既存の pre-commit（husky 等）を潰さない。退避先があれば続けて実行する。
 LOCAL="$(git rev-parse --git-path hooks/pre-commit.local 2>/dev/null)"
 if [ -n "${LOCAL:-}" ] && [ -x "$LOCAL" ]; then

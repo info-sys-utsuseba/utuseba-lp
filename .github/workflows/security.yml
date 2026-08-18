@@ -5,8 +5,13 @@ name: security
 #
 # このファイルは josys-security の雛形。手で編集せず、install.sh で更新すること。
 on:
+  # pull_request は入れない。
+  #   同一リポ内の PR では、PR に載る全コミットが push 時点で既に走査済み。
+  #   両方を有効にすると *同じ差分を 2 回* 走らせ、GitHub は 2 回課金する
+  #   （課金はジョブ単位で 1 分に切り上げ。1秒のジョブでも 1 分）。
+  #   2026-08-12 の無料枠枯渇を受けて外した。外部 fork からの PR を受ける
+  #   リポジトリが出てきたら、そのリポだけ pull_request を足すこと。
   push:
-  pull_request:
   schedule:
     - cron: '0 0 1 * *'       # 毎月1日 09:00 JST に全走査（既存分の棚卸し）
   workflow_dispatch:
@@ -14,9 +19,17 @@ on:
 permissions:
   contents: read              # 書き込み権限は要らない。最小権限で回す。
 
+concurrency:
+  # 同じブランチへ立て続けに push されたとき、走査を積み上げない。
+  # cancel-in-progress は false。走り始めた回を殺すと、その範囲の差分が
+  # 誰にも見られないまま消える。待たせるだけにする。
+  group: security-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10       # 既定は360分。1本ハングすると無料枠の18%を一度に失う
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,16 +39,13 @@ jobs:
         id: r
         env:
           EV:  ${{ github.event_name }}
-          PRB: ${{ github.event.pull_request.base.sha }}
-          PRH: ${{ github.event.pull_request.head.sha }}
           BEF: ${{ github.event.before }}
           SHA: ${{ github.sha }}
         # 値は env 経由で渡す。run: へ直接展開するとスクリプト注入の口になる。
         run: |
           case "$EV" in
-            pull_request) echo "range=$PRB..$PRH" >> "$GITHUB_OUTPUT" ;;
-            push)         echo "range=$BEF..$SHA" >> "$GITHUB_OUTPUT" ;;
-            *)            echo "range=" >> "$GITHUB_OUTPUT" ;;
+            push) echo "range=$BEF..$SHA" >> "$GITHUB_OUTPUT" ;;
+            *)    echo "range=" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: 機微情報スキャン
@@ -70,9 +80,9 @@ jobs:
             0) echo "clean" ;;
             1) echo "::warning::要確認の検出があります（停止はしません）" ;;
             2)
-              # push / PR = 今回入った変更が原因。止める。
+              # push = 今回入った変更が原因。止める。
               # schedule / 手動 = 既存分の棚卸し。別作業なので落とさず報告に留める。
-              if [ "$EV" = "push" ] || [ "$EV" = "pull_request" ]; then
+              if [ "$EV" = "push" ]; then
                 echo "::error::顧客の個人情報または鍵の混入を検出しました"
                 exit 1
               fi
@@ -84,3 +94,51 @@ jobs:
               exit 1
               ;;
           esac
+
+      # ── 強制点⑥: Actions のコスト事故を止める ──────────────────
+      # 2026-08-12、無料枠（月2,000分）の枯渇で請求書の提出チェックほか全社の
+      # 自動処理が停止した。原因は一発のミスではなく、小さいワークフローの積み上げ。
+      # 人の注意力ではなく機械で止める。
+      #
+      # 止めるのは *今回のコミットがワークフローを触ったとき* だけ。
+      # 既存の違反でいきなり全リポの CI を赤くすると、ゲートごと外される。
+      # 既存分は月次の棚卸し（schedule）で報告だけする。
+      - name: Actions コスト検査
+        if: always()
+        env:
+          RANGE: ${{ steps.r.outputs.range }}
+          EV:    ${{ github.event_name }}
+        run: |
+          if [ ! -f .security/wf_cost.py ]; then
+            echo "::warning::.security/wf_cost.py がありません（install.sh で更新してください）"
+            exit 0
+          fi
+
+          # 新規ブランチの push では before が全ゼロで範囲が解決できない。
+          # そのときは「止める」側ではなく「報告する」側に倒す（手元の pre-commit が
+          # 既に同じ検査をしているので、ここで落として新規ブランチを塞ぐ必要はない）。
+          BASE="${RANGE%%..*}"
+          if [ "$EV" = "push" ] && [ -n "$RANGE" ] \
+             && git rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null 2>&1; then
+            CHANGED="$(git diff --name-only --diff-filter=d "$RANGE" -- \
+                        '.github/workflows/*.yml' '.github/workflows/*.yaml' 2>/dev/null || true)"
+            if [ -z "$CHANGED" ]; then
+              echo "ワークフローの変更なし"
+              exit 0
+            fi
+            # shellcheck disable=SC2086
+            python3 .security/wf_cost.py --files $CHANGED --strict && RC=0 || RC=$?
+            case "$RC" in
+              0) echo "clean" ;;
+              1) echo "::warning::コスト面で要確認の設定があります（停止はしません）" ;;
+              2)
+                echo "::error::Actions のコスト事故につながる設定です。上の指示に従って直してください"
+                exit 1 ;;
+              *)
+                echo "::error::コスト検査エンジンが異常終了しました（RC=$RC）"
+                exit 1 ;;
+            esac
+          else
+            # 棚卸し。落とさない。
+            python3 .security/wf_cost.py --repo . || true
+          fi
